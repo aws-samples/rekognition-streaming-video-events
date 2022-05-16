@@ -36,12 +36,12 @@ Here we have provided a BASH script *kvs_setup.sh* that will help you get starte
 
 After building the SDK, the binary *kvs_gstreamer_file_uploader_sample* should be in the build directory.  This application requires IAM credentials in order to access the KVS APIs.  The permissions for the credentials should allow the following actions:
  
-**"kinesisvideo:PutMedia"**
-**"kinesisvideo:UpdateStream"**
-**"kinesisvideo:GetDataEndpoint"**
-**"kinesisvideo:UpdateDataRetention"**
-**"kinesisvideo:DescribeStream"**
-**"kinesisvideo:CreateStream"**
+- **"kinesisvideo:PutMedia"** 
+- **"kinesisvideo:UpdateStream"** 
+- **"kinesisvideo:GetDataEndpoint"** 
+- **"kinesisvideo:UpdateDataRetention"** 
+- **"kinesisvideo:DescribeStream"** 
+- **"kinesisvideo:CreateStream"** 
 
 #### Run the sample application
 
@@ -100,7 +100,7 @@ response = client.create_stream_processor(
         }
         },
 
-    RoleArn='arn:aws:iam::304243717290:role/RekTangelo',
+    RoleArn='Your ARN',
     NotificationChannel={
         'SNSTopicArn': "your SNS Queue ARN "
     }
@@ -111,6 +111,9 @@ print(response)
 5. Start your stream processor, we've provided a sample pythong script *start_stream_processor.py* and here is an example of how to start your stream processor simply update the configuration to match your own. 
 
 ```python
+import boto3
+
+client = boto3.client('rekognition')
 
 response = client.start_stream_processor(
     Name='tangelo1',
