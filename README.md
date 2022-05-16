@@ -108,7 +108,7 @@ response = client.create_stream_processor(
 print(response)
 ```
 
-5. Start your stream processor, we've provided a sample pythong script *start_stream_processor.py* and here is an example of how to start your stream processor simply update the configuration to match your own. 
+5. Start your stream processor, we've provided a sample python script *start_stream_processor.py* and here is an example of how to start your stream processor simply update the configuration to match your own. 
 
 ```python
 import boto3
