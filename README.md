@@ -93,7 +93,7 @@ response = client.create_stream_processor(
             'KeyPrefix': 'tang'
         }
     },
-    Name='name-of-stream-processor',
+    Name='DemoStream',
         Settings = {'ConnectedHome': {
             'Labels': ["PERSON", "PET", "PACKAGE","ALL"],
             'MinConfidence': 90
@@ -116,7 +116,7 @@ import boto3
 client = boto3.client('rekognition')
 
 response = client.start_stream_processor(
-    Name='tangelo1',
+    Name='DemoStream',
     StartSelector={
         'KVSStreamStartSelector': {
             'ProducerTimestamp': 1652717563529,
