@@ -3,7 +3,7 @@
 The connected home and managed security markets are dynamic and evolving, driven by an increased need for security, convenience, and entertainment. Amazon Rekognition Streaming Video Events detects objects (people, pets, and packages) in live video streams and returns the detected label(s), bounding box coordinates, zoomed-in images of the object(s) detected, and timestamps. The following will walk you through the steps needed to setup and configure Rekogntion Streaming Video Events to detect people, pets and packages in live video streams.
 
 
-[Reference Architecture Diagram]
+![Reference Architecture Diagram](https://github.com/aws-samples/rekognition-streaming-video-events/blob/main/img/sve_architecture.jpg?raw=true)
 
 ### Understanding Amazon Rekognition Streaming Video Events
 
