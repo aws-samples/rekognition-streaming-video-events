@@ -6,8 +6,8 @@ response = client.start_stream_processor(
     Name='tangelo1',
     StartSelector={
         'KVSStreamStartSelector': {
-            # 'ProducerTimestamp': 1652717563529,
-            'FragmentNumber': '1'
+            'ProducerTimestamp': StartTimeStamp,
+            #'FragmentNumber': '1'
         }
     },
     StopSelector={
