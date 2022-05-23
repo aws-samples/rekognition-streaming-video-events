@@ -25,7 +25,7 @@ response = client.create_stream_processor(
         }
         },
 
-    RoleArn='arn:aws:iam::304243717290:role/RekTangelo',
+    RoleArn='YourRoleARN',
     NotificationChannel={
         'SNSTopicArn': SNSTopicARN
     }
