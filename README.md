@@ -108,8 +108,7 @@ response = client.create_stream_processor(
     },
     Output={
         'S3Destination': {
-            'Bucket': 'tangelo-bucket',
-            'KeyPrefix': 'tang'
+            'Bucket': 'your-bucket-name'
         }
     },
     Name='demo-stream-processor',
@@ -140,7 +139,7 @@ response = client.start_stream_processor(
     Name='demo-stream-processor',
     StartSelector={
         'KVSStreamStartSelector': {
-            'ProducerTimestamp': 1652717563529
+            'ProducerTimestamp': 'epoch-time-stamp'
         }
     },
     StopSelector={
