@@ -60,12 +60,13 @@ To setup Rekognition Streaming Video Events, you need a Rekogntion VideoStreamPr
 The *kvs_gstreamer_file_uploader_sample* requires 3 arguments; a stream name, the filename to be streamed to KVS, and a timestamp.  The command `date +%s` will return the unix epoch time in seconds and is included here for convenience. This will create a KVS stream named **DemoStream** which you can use to start your processing.
 
 ```bash
-./kvs_gstreamer_file_uploader_sample DemoStream ~/package.mp4 `date +%s`
+./kvs_gstreamer_file_uploader_sample DemoStream /sample-video/package.mp4 `date +%s`
 ```
+
 Navigate to KVS on the AWS console and note KVS stream’s resource name (ARN), you will need this to create your stream processor.  
 
 
-##### 1. Alternate: Create a KVS stream using the AWS CLI  
+##### Alternate: Create a KVS stream using the AWS CLI  
 
 ```bash
 aws kinesisvideo create-stream --stream-name "DemoStream" \
