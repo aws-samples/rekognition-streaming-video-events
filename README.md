@@ -26,12 +26,21 @@ The Kinesis Video Streams (KVS) Producer SDKs enable you to build video pipeline
 You can select a larger instance type and more memory, but you must select Ubuntu 22.04 LTS for the following instructions to be relevant.
 
 ## Create a User and provide appropriate permissions
+
 Using the AWS console navigate to Identity and Access Management(IAM). Here you are going to create a new user which you will use to log into your EC2 instance you created above. When you create the user select AWS credential type: select Access key, this is used for programmatic access to AWS. This will also create an access key ID and secret access key for the AWS API, CLI, SDK and other development tools. Make note of the access key ID and the secret access key you’ll need these to configure the AWS client on your EC2 instance. 
 
 [Setting up your Amazon Rekognition Video and Amazon Kinesis resources](https://docs.aws.amazon.com/rekognition/latest/dg/streaming-labels-setting-up.html#streaming-labels-giving-access)
 
 
 ### Install the required dependencies and build the SDK
+
+On your ubuntu instance you'll need to configure the AWS CLI and set some enviornment variables. 
+
+```
+aws config # follow the instructions 
+
+
+```
 
 Here we have provided a BASH script *kvs_setup.sh* that will help you get started, we recomend cloning this repository and updating the  *kvs_setup.sh* script to suit your enviornment. 
 
@@ -50,6 +59,13 @@ After building the SDK, the binary *kvs_gstreamer_file_uploader_sample* should b
 - **"kinesisvideo:DescribeStream"** 
 - **"kinesisvideo:CreateStream"** 
 
+After obtaining the permissions, you must export them prior to executing the *kvs_gstreamer_file_uploader_sample.* 
+ 
+```bash
+export AWS_ACCESS_KEY_ID=<your access key id>
+export AWS_SECRET_ACCESS_KEY=<your secret access key>
+export AWS_DEFAULT_REGION=<your region>
+```
 
 ## Setting up Rekognition Streaming Video Events 
 
