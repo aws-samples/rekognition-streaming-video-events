@@ -1,8 +1,12 @@
 import boto3
 
-# add your ARNs here 
+# add your ARNs here :
 KinesisVideoStreamARN = ""
 SNSTopicARN = ""
+
+# add your bucket and stream processor names here:
+S3BucketName = ""
+StreamProcessorName = ""
 
 client = boto3.client('rekognition')
 
@@ -14,11 +18,10 @@ response = client.create_stream_processor(
     },
     Output={
         'S3Destination': {
-            'Bucket': 'tangelo-bucket',
-            'KeyPrefix': 'tang'
+            'Bucket': S3BucketName
         }
     },
-    Name='tangelo1',
+    Name= StreamProcessorName,
         Settings = {'ConnectedHome': {
             'Labels': ["PERSON", "PET", "PACKAGE","ALL"],
             'MinConfidence': 90
