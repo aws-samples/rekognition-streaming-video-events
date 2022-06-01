@@ -7,7 +7,7 @@ The connected home and managed security markets are dynamic and evolving, driven
 
 ### Understanding Amazon Rekognition Streaming Video Events
 
-Amazon Rekognition Streaming Video Events uses Amazon Kinesis Video Streams (KVS) to receive and process a video stream. You create a Rekognition video stream processor with parameters that show what you want the stream processor to detect from the video stream. In a typical connected home security use case, camera motion detection sensors trigger the stream processor to perform the analysis. When an object of interest is detected, Rekognition sends the detection results from streaming video events as notification on Amazon SNS and to storageAmazon S3 notifications. The following will walk you through the steps to setup and configure 
+Amazon Rekognition Streaming Video Events uses Amazon Kinesis Video Streams (KVS) to receive and process a video stream. You create a Rekognition video stream processor with parameters that show what you want the stream processor to detect from the video stream. In a typical connected home security use case, a in-camera motion detection sensor triggers the Rekognition stream processor to perform the analysis (detection of people, packages, and pets). When an object of interest is detected, Rekognition sends the results as a notification to Amazon SNS and to Amazon S3. The following will walk you through the steps to setup and configure Rekognition streaming video events for the *connected home* use case.
 
 ### Kinesis Video Stream Setup 
 
@@ -25,8 +25,15 @@ The Kinesis Video Streams (KVS) Producer SDKs enable you to build video pipeline
 
 You can select a larger instance type and more memory, but you must select Ubuntu 22.04 LTS for the following instructions to be relevant.
 
-*Install the required dependencies*
-Here we have provided a BASH script *kvs_setup.sh* that will help you get started, we recomend cloning this repository and updating the scripts to suit your enviornment. 
+## Create a User and provide appropriate permissions
+Using the AWS console navigate to Identity and Access Management(IAM). Here you are going to create a new user which you will use to log into your EC2 instance you created above. When you create the user select AWS credential type: select Access key, this is used for programmatic access to AWS. This will also create an access key ID and secret access key for the AWS API, CLI, SDK and other development tools. Make note of the access key ID and the secret access key you’ll need these to configure the AWS client on your EC2 instance. 
+
+[Setting up your Amazon Rekognition Video and Amazon Kinesis resources](https://docs.aws.amazon.com/rekognition/latest/dg/streaming-labels-setting-up.html#streaming-labels-giving-access)
+
+
+### Install the required dependencies and build the SDK
+
+Here we have provided a BASH script *kvs_setup.sh* that will help you get started, we recomend cloning this repository and updating the  *kvs_setup.sh* script to suit your enviornment. 
 
 ```bash 
 ./kvs_setup.sh
@@ -34,7 +41,7 @@ Here we have provided a BASH script *kvs_setup.sh* that will help you get starte
 
 ## Obtain IAM credentials for the sample application
 
-After building the SDK, the binary *kvs_gstreamer_file_uploader_sample* should be in the build directory.  This application requires IAM credentials in order to access the KVS APIs.  The permissions for the credentials should allow the following actions:
+After building the SDK, the binary *kvs_gstreamer_file_uploader_sample* should be in the **build directory**.  This application requires IAM credentials in order to access the KVS APIs.  The permissions for the credentials should allow the following actions:
  
 - **"kinesisvideo:PutMedia"** 
 - **"kinesisvideo:UpdateStream"** 
@@ -43,38 +50,49 @@ After building the SDK, the binary *kvs_gstreamer_file_uploader_sample* should b
 - **"kinesisvideo:DescribeStream"** 
 - **"kinesisvideo:CreateStream"** 
 
-#### Run the sample application
 
-The *kvs_gstreamer_file_uploader_sample* requires 3 arguments; a stream name, the filename to be streamed to KVS, and a timestamp.  The command date +%s will return the unix epoch time in seconds and is included here for convenience. This will create a KVS stream which you can use to start your processing.
+## Setting up Rekognition Streaming Video Events 
+
+To setup Rekognition Streaming Video Events, you need a Rekogntion VideoStreamProcessor to process the video stream from KVS, a S3 bucket to write processor results to and an SNS topic to send notifications to downstream applications. The following will provide you examples of creating these objects. 
+
+#### 1. Run the sample application to create a KVS stream
+
+The *kvs_gstreamer_file_uploader_sample* requires 3 arguments; a stream name, the filename to be streamed to KVS, and a timestamp.  The command `date +%s` will return the unix epoch time in seconds and is included here for convenience. This will create a KVS stream named **DemoStream** which you can use to start your processing.
 
 ```bash
 ./kvs_gstreamer_file_uploader_sample DemoStream ~/package.mp4 `date +%s`
 ```
+Navigate to KVS on the AWS console and note KVS stream’s resource name (ARN), you will need this to create your stream processor.  
 
-### Setting up Rekognition Streaming Video Events 
 
-To setup Rekognition Streaming Video Events, you need a a Rekogntion VideoStreamProcessor to process the video stream from KVS, a S3 bucket to write processor results to and an SNS topic to send notifications to downstream applications. The following will provide you examples of creating these objects using the AWS CLI. 
-
-1. Create a KVS stream, *note the stream’s resource name (ARN)* you will need this to create your stream processor.  
+##### 1. Alternate: Create a KVS stream using the AWS CLI  
 
 ```bash
 aws kinesisvideo create-stream --stream-name "DemoStream" \
  --data-retention-in-hours "24"
 ```
-2. Create a S3 bucket for processor results. You’ll use the bucket to present artifacts (images, clips, bounding boxes etc) to down stream applications. 
+*note the stream’s resource name (ARN)* you will need this to create your stream processor.  
+
+####  2. Create a S3 bucket for processor results. 
+
+You’ll use the bucket to present artifacts (images, clips, bounding boxes etc) to down stream applications. 
 
 ```bash
 aws s3api create-bucket \
  --bucket DemoStreamBucket \
  --region us-east-1
 ```
-3. Create a SNS topic to send processor notifications to, make note of the resource name(ARN). You’ll use the SNS topic to trigger subsequent application processing. 
+#### 3. Create a SNS topic to send processor notifications
+
+You'll use the SNS topic to send notifications to downstream applicaitons. Besure to make note of the resource name(ARN). You’ll use the SNS topic to trigger subsequent application processing. 
 
 ```bash
 aws sns create-topic --name DemoStreamSNS
 ```
 
-4. Create your stream processor, Here we've provided a simple python script *cr_stream_processor.py*, simply replace your resource name. You note the settings for ConnectedHome, the Labels to look for, and the MinConfidence. MinConfidence is the main tuning dial, the higher the confidence 
+#### 4. Create a Rekogntion Stream Processor 
+
+Here we've provided a simple python script *cr_stream_processor.py*, simply replace your KVS stream's resource name(ARN), S3 bucket name, ans SNS resource name(ARN). Note the settings for ConnectedHome: the *Labels* to look for and *MinConfidence*. *MinConfidence* is our main tuning dial, the higher the confidence the more precise your stream processor will be in detecting these labels. 
 
 ```python
 import boto3
@@ -108,7 +126,9 @@ response = client.create_stream_processor(
 print(response)
 ```
 
-5. Start your stream processor, we've provided a sample python script *start_stream_processor.py* and here is an example of how to start your stream processor simply update the configuration to match your own. 
+#### 5. Trigger  your stream processor, 
+
+Here we've provided a sample python script *start_stream_processor.py* and here is an example of how to start your stream processor simply update the configuration to match your own. When triggering the script you can specify the durration of the video to search for labels. 
 
 ```python
 import boto3
@@ -119,8 +139,7 @@ response = client.start_stream_processor(
     Name='DemoStream',
     StartSelector={
         'KVSStreamStartSelector': {
-            'ProducerTimestamp': 1652717563529,
-            'FragmentNumber': '1'
+            'ProducerTimestamp': 1652717563529
         }
     },
     StopSelector={
@@ -128,6 +147,8 @@ response = client.start_stream_processor(
     }
 )
 ```
+
+
 
 
 
