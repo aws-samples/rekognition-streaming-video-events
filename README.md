@@ -31,18 +31,18 @@ Using the AWS console navigate to Identity and Access Management(IAM). Here you 
 
 [Setting up your Amazon Rekognition Video and Amazon Kinesis resources](https://docs.aws.amazon.com/rekognition/latest/dg/streaming-labels-setting-up.html#streaming-labels-giving-access)
 
+### Configure AWS Command Line Interface (CLI)
+
+On your ubuntu instance you'll need to configure the AWS Command Line Interface (CLI). To do this you'll need your AWS_ACCESS_KEY_ID and  AWS_SECRET_ACCESS_KEY and a defaut region.
+
+```bash
+# follow the instructions 
+aws configure 
+```
 
 ### Install the required dependencies and build the SDK
 
-On your ubuntu instance you'll need to configure the AWS CLI and set some enviornment variables. 
-
-```
-aws config # follow the instructions 
-
-
-```
-
-Here we have provided a BASH script *kvs_setup.sh* that will help you get started, we recomend cloning this repository and updating the  *kvs_setup.sh* script to suit your enviornment. 
+Once you've AWS Command Line Interface (CLI) is configured, you are now ready to install the dependancies and build the SDK. Here we have provided a BASH script *kvs_setup.sh* that will help you get started, we recomend cloning this repository and updating the  *kvs_setup.sh* script to suit your enviornment. 
 
 ```bash 
 ./kvs_setup.sh
@@ -59,7 +59,7 @@ After building the SDK, the binary *kvs_gstreamer_file_uploader_sample* should b
 - **"kinesisvideo:DescribeStream"** 
 - **"kinesisvideo:CreateStream"** 
 
-After obtaining the permissions, you must export them prior to executing the *kvs_gstreamer_file_uploader_sample.* 
+After obtaining the permissions, export your enviornment variables them prior to executing the *kvs_gstreamer_file_uploader_sample.* 
  
 ```bash
 export AWS_ACCESS_KEY_ID=<your access key id>
