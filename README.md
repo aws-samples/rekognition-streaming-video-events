@@ -80,7 +80,7 @@ You’ll use the bucket to present artifacts (images, clips, bounding boxes etc)
 
 ```bash
 aws s3api create-bucket \
- --bucket DemoStreamBucket \
+ --bucket demo-stream-bucket \
  --region us-east-1
 ```
 #### 3. Create a SNS topic to send processor notifications
@@ -88,7 +88,7 @@ aws s3api create-bucket \
 You'll use the SNS topic to send notifications to downstream applicaitons. Besure to make note of the resource name(ARN). You’ll use the SNS topic to trigger subsequent application processing. 
 
 ```bash
-aws sns create-topic --name DemoStreamSNS
+aws sns create-topic --name demo-stream-sns
 ```
 
 #### 4. Create a Rekogntion Stream Processor 
@@ -112,7 +112,7 @@ response = client.create_stream_processor(
             'KeyPrefix': 'tang'
         }
     },
-    Name='DemoStream',
+    Name='demo-stream-processor',
         Settings = {'ConnectedHome': {
             'Labels': ["PERSON", "PET", "PACKAGE","ALL"],
             'MinConfidence': 90
@@ -137,7 +137,7 @@ import boto3
 client = boto3.client('rekognition')
 
 response = client.start_stream_processor(
-    Name='DemoStream',
+    Name='demo-stream-processor',
     StartSelector={
         'KVSStreamStartSelector': {
             'ProducerTimestamp': 1652717563529
