@@ -1,0 +1,355 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: "AWS::Serverless-2016-10-31"
+Description: Stack for SVE Analysis
+
+Parameters:
+  pS3SourceBucketArn:
+    Description: The S3 bucket arn for the video inputs
+    Type: String
+    Default: arn:aws:s3:::*
+
+Resources:
+  rGlueDatabase:
+    Type: AWS::Glue::Database
+    Properties: 
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Description: "SVE Database"
+        Name: "sve_analytics"     
+
+  rDeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        RoleARN: !GetAtt rDeliveryRole.Arn
+        BucketARN: !Sub arn:aws:s3:::${rS3Bucket}
+        Prefix: "rekognition_output/event_namespace=!{partitionKeyFromQuery:name}/ingestion_dt=!{timestamp:yyyy-MM-dd}/"
+        ErrorOutputPrefix: "firehose_error/result=!{firehose:error-output-type}/error_dt=!{timestamp:yyyy-MM-dd}/"
+        BufferingHints:
+          SizeInMBs: 64
+          IntervalInSeconds: 60
+        CompressionFormat: UNCOMPRESSED
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: '/aws/kinesisfirehose/KDF-SVE'
+          LogStreamName: S3Delivery
+        DynamicPartitioningConfiguration:
+          Enabled: true
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Type: 'RecordDeAggregation'
+              Parameters:
+                - ParameterName: 'SubRecordType'
+                  ParameterValue: 'JSON'
+            - Type: 'AppendDelimiterToRecord'
+            - Type: 'MetadataExtraction'
+              Parameters:
+                - ParameterName: 'JsonParsingEngine'
+                  ParameterValue: 'JQ-1.6'
+                - ParameterName: 'MetadataExtractionQuery'
+                  ParameterValue: '{name:.eventNamespace.type}'
+  rS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  rDeliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': !Ref 'AWS::AccountId'
+      Path: "/"
+      Policies:
+        - PolicyName: firehose_delivery_policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:AbortMultipartUpload'
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                  - 's3:ListBucketMultipartUploads'
+                  - 's3:PutObject'
+                Resource:
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref rS3Bucket
+                  - !Join 
+                    - ''
+                    - - 'arn:aws:s3:::'
+                      - !Ref rS3Bucket
+                      - '/*'
+              - Effect: Allow
+                Action: 'glue:GetTableVersions'
+                Resource: '*'
+              - Effect: Allow
+                Action: 'logs:PutLogEvents'
+                Resource: 
+                - !Join 
+                    - ''
+                    - - 'arn:aws:logs:'
+                      - !Ref 'AWS::Region'
+                      - ':'
+                      - !Ref 'AWS::AccountId'
+                      - 'log-group:/aws/kinesisfirehose/KDF-SVE'
+                      - ':log-stream:*'
+  rLambdaRawToStage:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Zip
+      InlineCode: |
+        import json
+        import awswrangler as wr
+        import pandas as pd
+        from urllib.parse import unquote_plus
+        import os
+        
+        def lambda_handler(event, context):
+            source_bucket = event['Records'][0]['s3']['bucket']['name']
+            source_key = unquote_plus(event['Records'][0]['s3']['object']['key'])
+            target_bucket = os.environ['s3BucketName']
+            
+            if 'LABEL_DETECTED' not in source_key:
+                    return {
+                        'statusCode': 200,
+                        'body': 'LABEL_DETECTED partition does not exist'
+                    }
+            db_name = os.environ['glueDatabaseName']
+            tbl_name = os.environ['glueTableName']
+            s3_key_path = "s3://{}/{}".format(source_bucket, source_key)
+            output_path = "s3://{}/{}/{}/".format(target_bucket, db_name, tbl_name)
+        
+            df = wr.s3.read_json(path=s3_key_path, lines=True)
+            
+            if 'labels' in df.columns:
+                flattened_df=pd.concat([pd.json_normalize(df['labels'][key]) for key in df.index]).reset_index(drop=True)
+                df=pd.merge(df, flattened_df, left_index=True, right_index=True)
+                df.rename(columns={"name": "labelName"}, inplace=True)
+            if 'eventNamespace' in df.columns:
+                df['eventNamespaceType']=df['eventNamespace'].apply(lambda x: x['type'])
+            if 'inputInformation' in df.columns:
+                df=pd.merge(df, pd.json_normalize(df['inputInformation']).reset_index(drop=True), left_index=True, right_index=True)
+            if 'startStreamProcessorRequest' in df.columns:
+                df=pd.merge(df, pd.json_normalize(df['startStreamProcessorRequest']).reset_index(drop=True), left_index=True, right_index=True)
+                df.rename(columns={"name": "streamProcessorName"}, inplace=True)
+            
+            df.drop(columns=['labels', 'eventNamespace', 'inputInformation', 'startStreamProcessorRequest', 'tags'], inplace = True)
+            df.columns.str.replace('.', '_', regex=False)
+            
+            wr.s3.to_parquet(
+                df=df,
+                path=output_path,
+                dataset=True,
+                mode="append",
+                database=db_name,
+                table=tbl_name
+            )
+            return {
+                'statusCode': 200,
+                'body': 'execution successful'
+            }
+      FunctionName: LambdaRawToStage
+      Layers:
+        - "arn:aws:lambda:us-east-1:336392948345:layer:AWSDataWrangler-Python39:9"
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Description: "A lambda function that converts raw files to Parquet"
+      MemorySize: 128
+      Timeout: 60
+      Role: !GetAtt rLambdaRole.Arn
+      Environment:
+        Variables:
+          s3BucketName: !Sub '${AWS::StackName}-${AWS::AccountId}'
+          glueDatabaseName: !Ref rGlueDatabase
+          glueTableName: "sve_analytics"
+      Events:
+        S3Event:
+          Properties:
+            Bucket: !Ref rS3Bucket
+            Events: s3:ObjectCreated:*
+          Type: S3
+
+  rLambdaRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Description: !Sub "IAM Role for Lambda function"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: LambdaPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Sid: S3Access
+                Action:
+                  - "s3:PutObject"
+                  - "s3:AbortMultipartUpload"
+                  - "s3:ListMultipartUploadParts"
+                  - "S3:Get*" 
+                  - "S3:List*"
+                Resource:
+                  - !Sub 'arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}'
+              - Effect: Allow
+                Sid: GlueAccess
+                Action:
+                  - "glue:*"
+                Resource:
+                  - "*"                
+
+  rSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sve-stream-sns
+  rSNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Id: sve-stream-sns-notifications
+        Version: 2012-10-17
+        Statement:
+          - Sid: sve-stream-sns-notifications
+            Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+                - s3.amazonaws.com
+            Action:
+              - SNS:GetTopicAttributes
+              - SNS:SetTopicAttributes
+              - SNS:AddPermission
+              - SNS:RemovePermission
+              - SNS:DeleteTopic
+              - SNS:Subscribe
+              - SNS:ListSubscriptionsByTopic
+              - SNS:Publish            
+            Resource: !Ref rSNSTopic
+            Condition:
+              StringEquals:
+                "AWS:SourceOwner": !Ref AWS::AccountId
+      Topics:
+        - !Ref rSNSTopic
+        
+  rSNSTopicFirehoseSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt rDeliveryStream.Arn
+      Protocol: firehose
+      TopicArn: !Ref rSNSTopic  
+      RawMessageDelivery: true
+      SubscriptionRoleArn: !GetAtt rSNSRole.Arn
+
+  rSNSRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Description: !Sub "IAM Role for SNS Subscriptions"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonSNSRole"
+      Policies:
+        - PolicyName: SNSPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Sid: FirehoseAccess
+                Action:
+                  - "firehose:DescribeDeliveryStream"
+                  - "firehose:ListDeliveryStreams"
+                  - "firehose:ListTagsForDeliveryStream"
+                  - "firehose:PutRecord"
+                  - "firehose:PutRecordBatch"                  
+                Resource:
+                  - !GetAtt rDeliveryStream.Arn
+              - Effect: Allow
+                Sid: SNSAccess
+                Action:
+                  - "sns:*"
+                Resource:
+                  - !Ref rSNSTopic                  
+
+  rRekognitionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Description: !Sub "IAM Role for Rekognition"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rekognition.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonRekognitionServiceRole"
+      Policies:
+        - PolicyName: RekognitionPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Sid: S3Access
+                Action:
+                  - "s3:PutObject"
+                  - "s3:AbortMultipartUpload"
+                  - "s3:ListMultipartUploadParts"
+                  - "S3:Get*" 
+                  - "S3:List*"
+                Resource:
+                  - !Join ['/',[!GetAtt rS3Bucket.Arn,"*"]]
+                  - !Ref pS3SourceBucketArn
+              - Effect: Allow
+                Sid: SNSAccess
+                Action:
+                  - "sns:Publish"
+                Resource:
+                  - !Ref rSNSTopic               
+                  
+Outputs:
+  oDeliveryStreamArn:
+    Description: The ARN of the firehose delivery stream
+    Value: !GetAtt rDeliveryStream.Arn
+  oS3BucketName:
+    Description: The S3 Bucket Name
+    Value: !Ref rS3Bucket  
+  oSNSTopicArn:
+    Description: The ARN of the SNS Topic
+    Value: !Ref rSNSTopic    
+  oRekognitionRoleArn:
+    Description: The IAM Role to be assumed by Rekognition
+    Value: !GetAtt rRekognitionRole.Arn 
