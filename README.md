@@ -186,6 +186,11 @@ python stream_simulator.py sns_topic_arn s3_bucket_name rekognition_role_arn pat
 
 4. Analyze the results using the SVE Profile Report.
 
+```bash
+python sve_profile_report.py
+```
+This will produce a sve_profile_report.html file which you can use to analyse the results of your videos. 
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
