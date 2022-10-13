@@ -164,9 +164,27 @@ response = client.start_stream_processor(
 )
 ```
 
+## Analyzing Rekognition Streaming Video Events 
 
+To analyze the Rekognition Streaming Video Events, you need to capture the stream processor results that are sent to the SNS topic and store in an AWS Glue Table. To do so, you can deploy the AWS CloudFormation template. The template creates the following infrastructure:
 
+- Amazon SNS Topic to capture the Rekognition Streaming Video Events
+- Amazon Kinesis Data Firehose to consume the events from the SNS topic
+- Amazon S3 Bucket to store the underlying data
+- AWS Lambda Function to processs the Firehose stream, write the processed data to S3, and update the table
+- AWS Glue Database that will store the processing results table.
 
+1. Deploy the [CloudFormation template](./cloudformation/sve-template.yaml) in your account.
+
+2. Once the stack creates successfully, download your videos to your EC2 instance execute an `aws s3 sync`
+
+3. Then, execute the stream simulator Python script to stream the downloaded videos to Kinesis Video Streams. The script will automatically start Rekogntion Stream Processors to process the streaming video.
+
+```bash
+python stream_simulator.py sns_topic_arn s3_bucket_name rekognition_role_arn path_to_uploader
+```
+
+4. Analyze the results using the SVE Profile Report.
 
 ## Security
 
